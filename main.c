@@ -23,7 +23,7 @@
 #define OP_MAX_SIZE 100000000
 
 /* types */
-#define CALC_TYPE float
+#define CALC_TYPE long long int
 
 /* define the pixel size of display */
 #define GLCD_WIDTH  84
@@ -42,6 +42,8 @@ void SPI_write(unsigned char);
 void blink(const int);
 void error_blink(const int);
 void test_math_op();
+void test_putnum();
+void test_positive_ints();
 void test_alphabet();
 
 /* global variables */
@@ -173,7 +175,8 @@ int main(void) {
    /* start tests */
    //test_math_op();
    //GLCD_clear();   /* clear display and  home the cursor */
-   test_alphabet();
+   //test_alphabet();
+   test_putnum();
    /* end tests */
 
 
@@ -456,29 +459,62 @@ void GLCD_putstr(char * str) {
  * Display a number on the GLCD
  */
 void GLCD_putnum(CALC_TYPE num) {
-   // variables
+   /* variables */
    int digit; // range = 0 through 9
-   double pow10 = 1; // 10^0 = 1
-
+   // 64-bit integer
+   long long int pow10 = 1; // 10^0 = 1
+   
    /* STEP 1 */
    // check if the number is negative
    // NOT IMPLEMENTED YET
-
+    
    /* STEP 2 */ 
-   //find the greatest power of 10
-   // we can integer-divide the number by
-   // and obtain a non-zero digit
-   
-   // WHILE there is a greater power
-   // of 10 that we can integer-divide the
+   // extract the whole part from the fractional
+   // 64-bit integer
+   long long int whole = (long long int)num; // whole part of num, e.g. (int)3.14 = 3 
+   CALC_TYPE fractional_part = num - whole; // e.g. 3.14 - 3 = 0.14
+
+
+   /* STEP 3 */ 
+   // find the greatest power of 10
+   // we can integer-divide the whole part of the
+   // number by that is meaningful to display
+   // (instead of an infinite-trail of leading zeros)
+   // WHILE there is a greater power of 10
+   // that we can integer-divide the
    // number by and obtain a non-zero answer
-   while(pow10 * 10 < num) {
+   while (pow10 * 10 <= whole) {
       pow10 *= 10;
    } 
 
-   // display the number one digit at a time
-   while (num != 0) {
-      digit = num % num;
+   /* STEP 4 */
+   // display the whole part of the number one
+   // digit at a time
+   // WHILE the power of 10 hasn't gone below 10^0 = 1
+   while (pow10 >= 1) {
+      digit = whole / pow10; // e.g. 313 / 10^2 = 3
+      whole %= pow10;         // e.g. 313 % 10^2 = 13
+      // print digit
+      // add 48 to convert the number to its ASCII 
+      // visual representation
+      // subtract 32 to index from 0 (Space) to the underscore
+      // in the font table
+      // 48-32=16 is leftover needing to be added
+      GLCD_putchar(digit + 16); 
+
+      // update the power of 10
+      pow10 /= 10; // e.g. 10^3 / 10 = 10^2
+   }
+   
+   /* STEP 5 */
+   // display the fractional part of the number one
+   // digit at a time
+   /*
+   // WHILE the fractional part has not become a boring
+   // infinite trail of zeros
+   while (fractional_part != 0) {
+      digit = num / pow10; // e.g. 3.14 / 10^0 = 3
+      num %= pow10;        // e.g. 3.14 
       // print digit
       // add 48 to convert the number to its ASCII 
       // visual representation
@@ -487,6 +523,7 @@ void GLCD_putnum(CALC_TYPE num) {
       // 48-32=16 is leftover needing to be added
       GLCD_putchar(digit + 16); 
    }
+   */
 }
 
 /**
@@ -578,4 +615,50 @@ void test_alphabet() {
    for (num_char = 0; num_char < num_elements; ++num_char) {
       GLCD_putchar(num_char);    // display the num_char letter
    }
+}
+
+/**
+ * Test the positive integers
+ */
+void test_positive_ints() {
+
+   GLCD_putnum(0);
+   GLCD_putchar(' '); // put a space in between
+   GLCD_putnum(1);
+   GLCD_putchar(' '); // put a space in between
+   GLCD_putnum(2);
+   GLCD_putchar(' '); // put a space in between
+   GLCD_putnum(10);
+   GLCD_putchar(' '); // put a space in between
+   GLCD_putnum(11);
+   GLCD_putchar(' '); // put a space in between
+   GLCD_putnum(36);
+   GLCD_putchar(' '); // put a space in between
+   GLCD_putnum(313);
+   GLCD_putchar(' '); // put a space in between
+   // test the biggest int possible: 2^64 - 1
+   // should map to -(2^64) + (2^64 - 1) rem 2^64
+   // where rem is the modulo
+   // this should display the character just before
+   // 0 because that is -1 according to the logic in putnum
+   GLCD_putnum(18446744073709551615);
+   GLCD_putchar(' '); // put a space in between
+   // test the biggest unsigned int possible: 2^32 - 1
+   GLCD_putnum(4294967295);
+   GLCD_putchar(' '); // put a space in between
+   __delay_cycles(16*DELAY);
+}
+
+/**
+ * Display the currently available alphabet
+ */
+void test_putnum() {
+   /* positive integers */
+   test_positive_ints();
+
+   /* negative integers */
+
+   /* positive floats */
+
+   /* negative floats */
 }
