@@ -19,11 +19,11 @@
 #define DA BIT0
 
 /* constants */
-#define DELAY 250000
+#define DELAY 5000000
 #define OP_MAX_SIZE 100000000
 
 /* types */
-#define CALC_TYPE long long int
+#define CALC_TYPE long double
 
 /* define the pixel size of display */
 #define GLCD_WIDTH  84
@@ -44,6 +44,9 @@ void error_blink(const int);
 void test_math_op();
 void test_putnum();
 void test_positive_ints();
+void test_negative_ints();
+void test_positive_floats();
+void test_negative_floats();
 void test_alphabet();
 
 /* global variables */
@@ -463,16 +466,26 @@ void GLCD_putnum(CALC_TYPE num) {
    int digit; // range = 0 through 9
    // 64-bit integer
    long long int pow10 = 1; // 10^0 = 1
+   long long int whole = 0; // must be set later
+   CALC_TYPE fractional_part = 0; // must be set later
    
    /* STEP 1 */
    // check if the number is negative
+   if (num < 0) {
+      // display the negative sign
+      GLCD_putstr("-"); 
+      // negate to a positive number
+      // possible loss of data if num is the maximum
+      // negative number possible given the calculation type
+      num = -num; // e.g. -(-5) = 5
+   }
    // NOT IMPLEMENTED YET
     
    /* STEP 2 */ 
    // extract the whole part from the fractional
    // 64-bit integer
-   long long int whole = (long long int)num; // whole part of num, e.g. (int)3.14 = 3 
-   CALC_TYPE fractional_part = num - whole; // e.g. 3.14 - 3 = 0.14
+   whole = (long long int)num; // whole part of num, e.g. (int)3.14 = 3 
+   fractional_part = num - whole; // e.g. 3.14 - 3 = 0.14
 
 
    /* STEP 3 */ 
@@ -505,16 +518,20 @@ void GLCD_putnum(CALC_TYPE num) {
       // update the power of 10
       pow10 /= 10; // e.g. 10^3 / 10 = 10^2
    }
+   //GLCD_putstr("+");
    
    /* STEP 5 */
+   // check if there is a fractional part
+   if (fractional_part != 0.0) {
+      GLCD_putstr("."); // if so, display the decimal point
+   }
    // display the fractional part of the number one
    // digit at a time
-   /*
    // WHILE the fractional part has not become a boring
    // infinite trail of zeros
-   while (fractional_part != 0) {
-      digit = num / pow10; // e.g. 3.14 / 10^0 = 3
-      num %= pow10;        // e.g. 3.14 
+   while (fractional_part != 0.0) {
+      fractional_part *= 10; // e.g. 10(0.314) = 3.14
+      digit = (int)fractional_part; // e.g. (int)3.14 = 3
       // print digit
       // add 48 to convert the number to its ASCII 
       // visual representation
@@ -523,7 +540,6 @@ void GLCD_putnum(CALC_TYPE num) {
       // 48-32=16 is leftover needing to be added
       GLCD_putchar(digit + 16); 
    }
-   */
 }
 
 /**
@@ -618,7 +634,7 @@ void test_alphabet() {
 }
 
 /**
- * Test the positive integers
+ * Test some positive integers
  */
 void test_positive_ints() {
 
@@ -641,12 +657,51 @@ void test_positive_ints() {
    // where rem is the modulo
    // this should display the character just before
    // 0 because that is -1 according to the logic in putnum
-   GLCD_putnum(18446744073709551615);
-   GLCD_putchar(' '); // put a space in between
+   //GLCD_putnum(18446744073709551615);
+   //GLCD_putchar(' '); // put a space in between
    // test the biggest unsigned int possible: 2^32 - 1
    GLCD_putnum(4294967295);
    GLCD_putchar(' '); // put a space in between
-   __delay_cycles(16*DELAY);
+   __delay_cycles(DELAY);
+}
+
+/**
+ * Test some egative integers
+ */
+void test_negative_ints() {
+
+   GLCD_putnum(-1);
+   GLCD_putchar(' '); // put a space in between
+   GLCD_putnum(-3);
+   GLCD_putchar(' '); // put a space in between
+   GLCD_putnum(-313);
+   GLCD_putchar(' '); // put a space in between
+   // test the biggest unsigned int possible: -(2^32)
+   GLCD_putnum(-4294967296);
+   GLCD_putchar(' '); // put a space in between
+   __delay_cycles(DELAY);
+}
+/**
+ * Test some positive floats
+ */
+void test_positive_floats() {
+   GLCD_putnum(3.14);
+   GLCD_putnum(0.3);
+   GLCD_putnum(0.33333333333);
+   GLCD_putnum(0.00000000001);
+   // a more precise float
+   GLCD_putnum(0.000000000000000001);
+   // big floating point
+   GLCD_putnum(33333.14159265359);
+   __delay_cycles(DELAY);
+}
+
+/**
+ * Test some negative floats
+ */
+void test_negative_floats() {
+   GLCD_putstr("No test for negative floats yet");
+   __delay_cycles(DELAY);
 }
 
 /**
@@ -654,11 +709,25 @@ void test_positive_ints() {
  */
 void test_putnum() {
    /* positive integers */
+   /*
    test_positive_ints();
+   GLCD_clear();
+   */
 
    /* negative integers */
+   /*
+   test_negative_ints();
+   GLCD_clear();
+   */
 
    /* positive floats */
+   test_positive_floats();
+   GLCD_clear();
 
    /* negative floats */
+   /*
+   test_negative_floats();
+   GLCD_clear();
+   */
+
 }
