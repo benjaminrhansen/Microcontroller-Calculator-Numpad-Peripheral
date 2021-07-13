@@ -4,34 +4,142 @@
  */
 #include "msp.h"
 
+/* LEDs */
 #define LED1 BIT0
 #define LED2RED BIT0
 #define LED2GREEN BIT1
 #define LED2BLUE BIT2
 #define RGB_LED LED2RED|LED2GREEN|LED2BLUE
+
+/* pins */
+#define CE  0x01    /* P6.0 chip select */
+#define RESET 0x40  /* P6.6 reset */
+#define DC 0x80     /* P6.7 register select */
 #define S1 BIT1
 #define DA BIT0
+
+/* constants */
 #define DELAY 250000
 #define OP_MAX_SIZE 100000000
+
+/* types */
 #define CALC_TYPE float
 
-// global variables
+/* define the pixel size of display */
+#define GLCD_WIDTH  84
+#define GLCD_HEIGHT 48
+
+/* prototypes */
+void GLCD_setCursor(unsigned char, unsigned char);
+void GLCD_clear(void);
+void GLCD_init(void);
+void GLCD_data_write(unsigned char);
+void GLCD_command_write(unsigned char);
+void GLCD_putchar(int);
+void GLCD_putstr(char *);
+void SPI_init(void);
+void SPI_write(unsigned char);
+void blink(const int);
+void error_blink(const int);
+void test_math_op();
+void test_alphabet();
+
+/* global variables */
 int i = 0, ind_formula=0;
 CALC_TYPE lhs_operand = 4;
 //int temp_formula[FORMULA_LIMIT]; 
-// no bool in base C
+// there's no bool in base C
 //int is_first_num; // is this the first number in the formula
 int enter_time = 0, alarm = 0;
+/* sample font table */
+/* rows 0-63 correspond to characters Space through _ in ASCII */
+/* Strings using characters in this range 
+ * can be displayed to the GLCD via GLCD_put_str() */
+const char font_table[][6] = {
+   {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},  /*   */
+   {0x00, 0x00, 0x5f, 0x00, 0x00, 0x00},  /* ! */
+   {},  /* " */
+   {},  /* # */
+   {},  /* $ */
+   {},  /* % */
+   {},  /* & */
+   {},  /* ' */
+   {},  /* ( */
+   {},  /* ) */
+   {0x44, 0x28, 0x10, 0x28, 0x44, 0x00},  /* * */
+   {0x08, 0x08, 0x7f, 0x08, 0x08, 0x00},  /* + */
+   {},  /* , */
+   {0x08, 0x08, 0x08, 0x08, 0x08, 0x00},  /* - */
+   {0x00, 0x60, 0x60, 0x00, 0x00, 0x00},  /* . */
+   {0x60, 0x30, 0x18, 0x0c, 0x06, 0x00},  /* / */
+   {0x3e, 0x51, 0x49, 0x45, 0x3e, 0x00},  /* 0 */
+   {0x00, 0x44, 0x42, 0x7f, 0x40, 0x00},  /* 1 */
+   {0x44, 0x62, 0x62, 0x52, 0x4c, 0x00},  /* 2 */
+   {0x00, 0x41, 0x49, 0x49, 0x76, 0x00},  /* 3 */
+   {0x00, 0x0f, 0x08, 0x08, 0x7f, 0x00},  /* 4 */
+   {0x27, 0x49, 0x49, 0x49, 0x31, 0x00},  /* 5 */
+   {0x00, 0x3c, 0x4a, 0x49, 0x31, 0x00},  /* 6 */
+   {0x42, 0x22, 0x12, 0x0a, 0x06, 0x00},  /* 7 */
+   {0x00, 0x36, 0x49, 0x49, 0x36, 0x00},  /* 8 */
+   {0x06, 0x09, 0x09, 0x09, 0x7e, 0x00},  /* 9 */
+   {},  /* : */
+   {},  /* ; */
+   {},  /* < */
+   {0x00, 0x24, 0x24, 0x24, 0x24, 0x00},  /* = */
+   {},  /* > */
+   {},  /* ? */
+   {},  /* @ */
+   {0x7e, 0x11, 0x11, 0x11, 0x7e, 0x00},  /* A */
+   {0x7f, 0x49, 0x49, 0x49, 0x36, 0x00},  /* B */
+   {0x3e, 0x41, 0x41, 0x41, 0x22, 0x00},  /* C */
+   {0x7f, 0x41, 0x41, 0x41, 0x3e, 0x00},  /* D */
+   {0x7f, 0x49, 0x49, 0x49, 0x41, 0x00},  /* E */
+   {0x7f, 0x09, 0x09, 0x09, 0x01, 0x00},  /* F */
+   {0x3e, 0x41, 0x49, 0x49, 0x7a, 0x00},  /* G */
+   {0x7f, 0x08, 0x08, 0x08, 0x7f, 0x00},  /* H */
+   {0x41, 0x41, 0x7f, 0x41, 0x41, 0x00},  /* I */
+   {0x20, 0x40, 0x40, 0x40, 0x3f, 0x00},  /* J */
+   {0x7f, 0x08, 0x14, 0x22, 0x41, 0x00},  /* K */
+   {0x7f, 0x40, 0x40, 0x40, 0x40, 0x00},  /* L */
+   {0x7f, 0x02, 0x0c, 0x02, 0x7f, 0x00},  /* M */
+   {0x7f, 0x04, 0x08, 0x10, 0x7f, 0x00},  /* N */
+   {0x3e, 0x41, 0x41, 0x41, 0x3e, 0x00},  /* O */
+   {0x7f, 0x09, 0x09, 0x09, 0x06, 0x00},  /* P */
+   {0x3e, 0x41, 0x51, 0x61, 0x7e, 0x00},  /* Q */
+   {0x7f, 0x09, 0x19, 0x29, 0x46, 0x00},  /* R */
+   {0x26, 0x49, 0x49, 0x49, 0x32, 0x00},  /* S */
+   {0x01, 0x01, 0x7f, 0x01, 0x01, 0x00},  /* T */
+   {0x3f, 0x40, 0x40, 0x40, 0x3f, 0x00},  /* U */
+   {0x1f, 0x20, 0x40, 0x20, 0x1f, 0x00},  /* V */
+   {0x3f, 0x40, 0x38, 0x40, 0x3f, 0x00},  /* W */
+   {0x63, 0x14, 0x08, 0x14, 0x63, 0x00},  /* X */
+   {0x03, 0x04, 0x78, 0x04, 0x03, 0x00},  /* Y */
+   {0x61, 0x51, 0x49, 0x45, 0x43, 0x00},  /* Z */
+   {},  /* [ */
+   {},  /* \ */
+   {},  /* ] */
+   {},  /* ^ */
+   {},  /* _ */
+   {0x0c, 0x12, 0x24, 0x12, 0x0c, 0x00},  /* ♡ */
+   /* smiley's first half */
+   {0x00, 0x00, 0x7e, 0x81, 0xb5, 0xa1},
+   /* smiley's second half */
+   {0xa1, 0xb5, 0x81, 0x7e, 0x00, 0x00},
+};
 
-// prototypes
-void blink(const int n);
-void error_blink(const int n);
-void test_math_op();
-
+/**
+ * MAIN
+ * main setups the configurations for the peripherals, optionally 
+ * (through comment/un-comment) runs all tests, and then
+ * calls the calculator driver function which drives the devices
+ * implementing a calculator using a number pad and an old Nokia
+ * display
+ */
 int main(void) {
 
    WDT_A->CTL = WDT_A_CTL_PW | WDT_A_CTL_HOLD;  /* hold the watchdog timer */
 
+   /* configure calculator setup */
    P1->DIR |= BIT0;      /* set up pin P1.0 (red LED) as output */
    P2->DIR |= (RGB_LED);  /* set up pins P2.0, P2.1, P2.2 (R, G, and B LEDs) 
                              as output */
@@ -39,8 +147,8 @@ int main(void) {
    P2->OUT &= ~(RGB_LED); /* turn off RGB LED */
 
    P4->DIR &= ~(BIT0|BIT1|BIT2|BIT3); // set up pins P4.0, P4.1, P4.2, P4.3 
-                                      // (pins for the input from the keypad 
-                                      //  controller) as input 
+   // (pins for the input from the keypad 
+   //  controller) as input 
    P1->DIR &= ~S1;     /* set up pin P1.1 (S1) as input */
    P1->REN |= S1;      /* connect pull resistor to pin P1.1 (S1) */
    P1->OUT |= S1;      /* configure pull resistor as pull up */
@@ -58,16 +166,23 @@ int main(void) {
 
    _enable_interrupts();
 
-   // testing
-   //blink(3);
-   test_math_op();
-   // testing
+   /* configure GLCD */
+   GLCD_init();    /* initialize the GLCD controller */
+   GLCD_clear();   /* clear display and  home the cursor */
 
-   while (1); /* wait for an interrupt */
+   /* start tests */
+   //test_math_op();
+   //GLCD_clear();   /* clear display and  home the cursor */
+   test_alphabet();
+   /* end tests */
+
+
+   while (1) {} /* wait for an interrupt */
 }
 
 /***
  * Blink the green LED n times
+ * deprecated
  ***/
 void blink(int n) {
    // if the green light was on,
@@ -89,6 +204,7 @@ void blink(int n) {
       
 /***
  * Blink the red LEDs n times
+ * deprecated
  ***/
 void error_blink(int n) {
    // if the red LEDs were on,
@@ -310,3 +426,156 @@ void test_math_op() {
    // test edge cases
 }
 
+
+
+/*
+ * The smiley face is defined to be the last two characters of the array
+ */
+void GLCD_put_smiley_face() {
+   int size = sizeof(font_table) / sizeof(font_table[0]);
+   GLCD_putchar(size - 2); // first half
+   GLCD_putchar(size - 1); // second half
+}
+
+/**
+ * Display a c-string on the GLCD
+ */
+void GLCD_putstr(char * str) {
+   // increment the string pointer on byte at a time
+   // through each char
+   for(; *str != '\0'; ++str) {
+      // take the ASCII value of the character
+      // subtract 32 to get the index related to
+      // the char to put in the range of
+      // 0 (for Space) to 62 (for @)
+      GLCD_putchar(*str - 32);
+   }
+}
+
+/**
+ * Display a number on the GLCD
+ */
+void GLCD_putnum(CALC_TYPE num) {
+   // variables
+   int digit; // range = 0 through 9
+   double pow10 = 1; // 10^0 = 1
+
+   /* STEP 1 */
+   // check if the number is negative
+   // NOT IMPLEMENTED YET
+
+   /* STEP 2 */ 
+   //find the greatest power of 10
+   // we can integer-divide the number by
+   // and obtain a non-zero digit
+   
+   // WHILE there is a greater power
+   // of 10 that we can integer-divide the
+   // number by and obtain a non-zero answer
+   while(pow10 * 10 < num) {
+      pow10 *= 10;
+   } 
+
+   // display the number one digit at a time
+   while (num != 0) {
+      digit = num % num;
+      // print digit
+      // add 48 to convert the number to its ASCII 
+      // visual representation
+      // subtract 32 to index from 0 (Space) to the underscore
+      // in the font table
+      // 48-32=16 is leftover needing to be added
+      GLCD_putchar(digit + 16); 
+   }
+}
+
+/**
+ * Put the character on the GLCD
+ * according to the 6 integers at the 
+ * given indexed-column in the font table
+ */
+void GLCD_putchar(int c)
+{
+    int i;
+    for(i = 0; i < 6; i++)
+        GLCD_data_write(font_table[c][i]);
+}
+
+void GLCD_setCursor(unsigned char x, unsigned char y)
+{
+    GLCD_command_write(0x80 | x); /* column */
+    GLCD_command_write(0x40 | y); /* bank (8 rows per bank) */
+}
+
+/* clears the GLCD by writing zeros to the entire screen */
+void GLCD_clear(void)
+{
+    int32_t index;
+    for(index = 0; index < (GLCD_WIDTH * GLCD_HEIGHT / 8); index++)
+        GLCD_data_write(0x00);
+    GLCD_setCursor(0, 0); /* return to the home position */
+}
+
+/* send the initialization commands to PCD8544 GLCD controller */
+void GLCD_init(void)
+{
+    SPI_init();
+    /* hardware reset of GLCD controller */
+    P6->OUT |= RESET;   /* deasssert reset */
+
+    GLCD_command_write(0x21);   /* set extended command mode */
+    GLCD_command_write(0xB8);   /* set LCD Vop for contrast */
+    GLCD_command_write(0x04);   /* set temp coefficient */
+    GLCD_command_write(0x14);   /* set LCD bias mode 1:48 */
+    GLCD_command_write(0x20);   /* set normal command mode */
+    GLCD_command_write(0x0C);   /* set display normal mode */
+}
+
+/* write to GLCD controller data register */
+void GLCD_data_write(unsigned char data)
+{
+    P6->OUT |= DC;              /* select data register */
+    SPI_write(data);            /* send data via SPI */
+}
+
+/* write to GLCD controller command register */
+void GLCD_command_write(unsigned char data)
+{
+    P6->OUT &= ~DC;             /* select command register */
+    SPI_write(data);            /* send data via SPI */
+}
+
+void SPI_init(void)
+{
+    EUSCI_B0->CTLW0 = 0x0001;   /* put UCB0 in reset mode */
+    EUSCI_B0->CTLW0 = 0x69C1;   /* PH=0, PL=1, MSB first, Master, SPI, SMCLK */
+    EUSCI_B0->BRW = 3;          /* 3 MHz / 3 = 1MHz */
+    EUSCI_B0->CTLW0 &= ~0x001;   /* enable UCB0 after config */
+
+    P1->SEL0 |= 0x60;           /* P1.5, P1.6 for UCB0 */
+    P1->SEL1 &= ~0x60;
+
+    P6->DIR |= (CE | RESET | DC); /* P6.7, P6.6, P6.0 set as output */
+    P6->OUT |= CE;              /* CE idle high */
+    P6->OUT &= ~RESET;          /* assert reset */
+}
+
+void SPI_write(unsigned char data)
+{
+    P6->OUT &= ~CE;             /* assert /CE */
+    EUSCI_B0->TXBUF = data;     /* write data */
+    while(EUSCI_B0->STATW & 0x01);/* wait for transmit done */
+    P6->OUT |= CE;              /* deassert /CE */
+}
+
+/**
+ * Display the currently available alphabet
+ */
+void test_alphabet() {
+   // get the number of elements in the array
+   int num_elements = sizeof(font_table) / sizeof(font_table[0]);
+   int num_char; // used in for loop
+   for (num_char = 0; num_char < num_elements; ++num_char) {
+      GLCD_putchar(num_char);    // display the num_char letter
+   }
+}
