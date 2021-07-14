@@ -1,6 +1,16 @@
 /*
- * This program receives SO FAR two input integers 
- * and performs a mathematical operation (ADD) on them
+ * Program: Number-pad Calculator using the MSP432 LaunchPad
+ * File: main.c
+ * Author: Benjamin Hansen as taught by Rex Fisher, BYU-Idaho
+ * Description:
+ *      This program is in development. Currently it can display 
+ *      integers to the GLCD display. I'm working on making it
+ *      display floating point numbers. Due to precision issues,
+ *      the program only prints floating point numbers up to a predefined
+ *      precision in the fractional part of the number.
+ *      NOTE: 
+ *              The program doesn't round, but truncates the from the last
+ *              digit displayed in the fractional part
  */
 #include "msp.h"
 
@@ -21,6 +31,7 @@
 /* constants */
 #define DELAY 5000000
 #define OP_MAX_SIZE 100000000
+#define PRECISION 4 /* fractional digits displayed */ 
 
 /* types */
 #define CALC_TYPE long double
@@ -41,6 +52,7 @@ void SPI_init(void);
 void SPI_write(unsigned char);
 void blink(const int);
 void error_blink(const int);
+void assert(int, int);
 void test_math_op();
 void test_putnum();
 void test_positive_ints();
@@ -384,7 +396,7 @@ uint8_t keypad_decode() {
  * assert: assert the truth of the condition
  *      if condition is not true, sound the alarm
  */
-void assert(const int condition, CALC_TYPE error_blink_n) {
+void assert(const int condition, int error_blink_n) {
    if (!condition) {
       error_blink(error_blink_n);
       __delay_cycles(4*DELAY); // delay between errors as necessary
@@ -463,7 +475,9 @@ void GLCD_putstr(char * str) {
  */
 void GLCD_putnum(CALC_TYPE num) {
    /* variables */
+   int i;     // floating-point display FOR loop
    int digit; // range = 0 through 9
+
    // 64-bit integer
    long long int pow10 = 1; // 10^0 = 1
    long long int whole = 0; // must be set later
@@ -524,22 +538,34 @@ void GLCD_putnum(CALC_TYPE num) {
    // check if there is a fractional part
    if (fractional_part != 0.0) {
       GLCD_putstr("."); // if so, display the decimal point
+
+      // display the fractional part of the number one
+      // digit at a time up to the defined precision
+      // this way of displaying the fractional part of the number
+      // is at the mercy of the precision of floating-point operations 
+      // on the MSP432
+      for (i = 0; i < PRECISION; ++i) {
+         fractional_part *= 10; // e.g. 10(0.314) = 3.14
+         digit = (int)fractional_part; // e.g. (int)3.14 = 3
+         fractional_part -= digit;     // e.g. 3.14 - 3 = 0.14
+
+
+         /* print digit */
+         // add 48 to convert the number to its ASCII 
+         // visual representation
+         // subtract 32 to index from 0 (Space) to the underscore
+         // in the font table
+         // 48-32=16 is leftover needing to be added
+         // under the assumption that multiplying by 10 and casting
+         // that result to an integer should give an integer
+         // in the range 0-9, make sure that is the case
+         // IF digit is in [0, 9]
+         if (digit < 10 && digit >= 0) {
+            GLCD_putchar(digit + 16); 
+         }
+      }
    }
-   // display the fractional part of the number one
-   // digit at a time
-   // WHILE the fractional part has not become a boring
-   // infinite trail of zeros
-   while (fractional_part != 0.0) {
-      fractional_part *= 10; // e.g. 10(0.314) = 3.14
-      digit = (int)fractional_part; // e.g. (int)3.14 = 3
-      // print digit
-      // add 48 to convert the number to its ASCII 
-      // visual representation
-      // subtract 32 to index from 0 (Space) to the underscore
-      // in the font table
-      // 48-32=16 is leftover needing to be added
-      GLCD_putchar(digit + 16); 
-   }
+
 }
 
 /**
@@ -686,13 +712,21 @@ void test_negative_ints() {
  */
 void test_positive_floats() {
    GLCD_putnum(3.14);
+   GLCD_putchar(' '); // put a space in between
+   GLCD_putnum(3.1);
+   GLCD_putchar(' '); // put a space in between
    GLCD_putnum(0.3);
+   GLCD_putchar(' '); // put a space in between
    GLCD_putnum(0.33333333333);
+   GLCD_putchar(' '); // put a space in between
    GLCD_putnum(0.00000000001);
+   GLCD_putchar(' '); // put a space in between
    // a more precise float
    GLCD_putnum(0.000000000000000001);
+   GLCD_putchar(' '); // put a space in between
    // big floating point
    GLCD_putnum(33333.14159265359);
+   GLCD_putchar(' '); // put a space in between
    __delay_cycles(DELAY);
 }
 
@@ -700,7 +734,22 @@ void test_positive_floats() {
  * Test some negative floats
  */
 void test_negative_floats() {
-   GLCD_putstr("No test for negative floats yet");
+   GLCD_putnum(-3.14);
+   GLCD_putchar(' '); // put a space in between
+   GLCD_putnum(-3.1);
+   GLCD_putchar(' '); // put a space in between
+   GLCD_putnum(-0.3);
+   GLCD_putchar(' '); // put a space in between
+   GLCD_putnum(-0.33333333333);
+   GLCD_putchar(' '); // put a space in between
+   GLCD_putnum(-0.00000000001);
+   GLCD_putchar(' '); // put a space in between
+   // a more precise float
+   GLCD_putnum(-0.000000000000000001);
+   GLCD_putchar(' '); // put a space in between
+   // big floating point
+   GLCD_putnum(-33333.14159265359);
+   GLCD_putchar(' '); // put a space in between
    __delay_cycles(DELAY);
 }
 
@@ -709,25 +758,19 @@ void test_negative_floats() {
  */
 void test_putnum() {
    /* positive integers */
-   /*
    test_positive_ints();
    GLCD_clear();
-   */
 
    /* negative integers */
-   /*
    test_negative_ints();
    GLCD_clear();
-   */
 
    /* positive floats */
    test_positive_floats();
    GLCD_clear();
 
    /* negative floats */
-   /*
    test_negative_floats();
    GLCD_clear();
-   */
 
 }
