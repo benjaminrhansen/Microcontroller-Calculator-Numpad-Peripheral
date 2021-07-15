@@ -48,6 +48,7 @@ void GLCD_data_write(unsigned char);
 void GLCD_command_write(unsigned char);
 void GLCD_putchar(int);
 void GLCD_putstr(char *);
+void display_current_state(); // refreshes the display
 void SPI_init(void);
 void SPI_write(unsigned char);
 void blink(const int);
@@ -62,12 +63,18 @@ void test_negative_floats();
 void test_alphabet();
 
 /* global variables */
+/* variables directly affecting display */
+CALC_TYPE lhs = 0;
+CALC_TYPE rhs = 0;
+char operation = '\0'; // null-char means no-operation
+// start focus on the left hand side (lhs)
+CALC_TYPE * focus = &lhs; // point to the address of lhs
+/* other variables */
 int i = 0, ind_formula=0;
-CALC_TYPE lhs_operand = 4;
 //int temp_formula[FORMULA_LIMIT]; 
 // there's no bool in base C
 //int is_first_num; // is this the first number in the formula
-int enter_time = 0, alarm = 0;
+int alarm = 0;
 /* sample font table */
 /* rows 0-63 correspond to characters Space through _ in ASCII */
 /* Strings using characters in this range 
@@ -191,9 +198,11 @@ int main(void) {
    //test_math_op();
    //GLCD_clear();   /* clear display and  home the cursor */
    //test_alphabet();
-   test_putnum();
+   //test_putnum();
    /* end tests */
 
+   // display the current state (should display lhs = 0)
+   display_current_state();
 
    while (1) {} /* wait for an interrupt */
 }
@@ -253,23 +262,16 @@ CALC_TYPE math_op(const CALC_TYPE lhs_operand, const char operation,
    switch(operation) {
       case '+': /* add */
          result = lhs_operand + rhs_operand;
-         //blink(result);
          break;
       case '-': /* subtract */
          result = lhs_operand - rhs_operand;
-         //blink(result);
          break;
       case '*': /* multiply */
          result = lhs_operand * rhs_operand;
-         if (result < 10 && result > 0) {
-            blink(result);
-            __delay_cycles(4*DELAY);
-         }
          break;
       case '/': /* divide */
          if (rhs_operand != 0) {
             result = lhs_operand / rhs_operand;
-            //blink(result);
          }
          // else simulate a division-by-zero error
          else {
@@ -297,7 +299,6 @@ void PORT1_IRQHandler(void){
 
   if(status & BIT1){   /* if SW was pressed */
      alarm = 0;
-     enter_time = 0;
      P2->OUT &= ~LED2RED;  /*turn off red LED at pin P2.0 */
      P1->OUT &= ~LED1; /*turn off red LED at pin P1.0 */
      P2->OUT &= ~(LED2BLUE | LED2GREEN); /*turn off blue and green LEDs */
@@ -325,35 +326,35 @@ void PORT3_IRQHandler(void){
 
   if(status & BIT0){  /* if any key was pressed */
      key = keypad_decode();  /* determine which key was pressed */
-     if(!alarm){
-        // switch on the key
-        switch (key) {
-           case 0xA: /* “A” was pressed */
-              //P2->OUT &= ~(RGB_LED); /* turn off the RGB LED */
-              break;
-           case 0xB: /* if “B” was pressed */
-              //P2->OUT &= ~(RGB_LED); /* turn off the RGB LED */
-              // turn on the blue light to confirm formulaword save
-              //P2->OUT |= LED2BLUE;   /* turn on the blue LED (P2.2) */
-              break;
-           case 0xC:  /* if “C” was pressed */
-              //P2->OUT &= ~(RGB_LED); /* turn off the RGB LED */      
-              break;
-           case 0xD:  /* if "D" was pressed */
-              //P2->OUT &= ~(RGB_LED); /* turn off the RGB LED */
-              //P2->OUT |= LED2GREEN;  /* turn on the green LED (P2.1) */
-              //enter_time = 0; // Reset enter-try counter
-              blink(lhs_operand);
-              break;
-           case 0xE:
-              break;
-           case 0xF:
-              break;
-           default:
-              break;
-        }
+     // switch on the key
+     switch (key) {
+        case 0xA: /* “A” was pressed */
+           //P2->OUT &= ~(RGB_LED); /* turn off the RGB LED */
+           break;
+        case 0xB: /* if “B” was pressed */
+           //P2->OUT &= ~(RGB_LED); /* turn off the RGB LED */
+           // turn on the blue light to confirm formulaword save
+           //P2->OUT |= LED2BLUE;   /* turn on the blue LED (P2.2) */
+           break;
+        case 0xC:  /* if “C” was pressed */
+           //P2->OUT &= ~(RGB_LED); /* turn off the RGB LED */      
+           break;
+        case 0xD:  /* if "D" was pressed */
+           //P2->OUT &= ~(RGB_LED); /* turn off the RGB LED */
+           //P2->OUT |= LED2GREEN;  /* turn on the green LED (P2.1) */
+           //blink(lhs_operand);
+           break;
+        case 0xE:
+           break;
+        case 0xF:
+           break;
+        default:
+           break;
      }
   }
+
+  // always refresh the display on every input
+  display_current_state();
 }
 
 
@@ -399,6 +400,8 @@ uint8_t keypad_decode() {
 void assert(const int condition, int error_blink_n) {
    if (!condition) {
       error_blink(error_blink_n);
+      GLCD_putstr("Assert fired for error n: ");
+      GLCD_putnum(error_blink_n);
       __delay_cycles(4*DELAY); // delay between errors as necessary
    }
 }
@@ -645,6 +648,25 @@ void SPI_write(unsigned char data)
     EUSCI_B0->TXBUF = data;     /* write data */
     while(EUSCI_B0->STATW & 0x01);/* wait for transmit done */
     P6->OUT |= CE;              /* deassert /CE */
+}
+
+
+
+/**
+ * Display the current state of the
+ * calculator. If the operation is not the null character
+ * or equal sign, display the operation and RHS
+ */
+void display_current_state() {
+   // always clear the display before displaying the
+   // current state
+   GLCD_clear();
+   GLCD_putnum(lhs);
+   // IF the opeartion is not the null character or the equal sign
+   if (operation != '\0' && operation != '=') {
+      GLCD_putstr(operation); // display the operation
+      GLCD_putnum(rhs);       // display the rhs
+   }
 }
 
 /**
