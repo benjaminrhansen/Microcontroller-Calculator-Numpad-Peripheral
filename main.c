@@ -263,6 +263,9 @@ void error_blink(int n) {
  */
 CALC_TYPE math_op(const CALC_TYPE lhs_operand, const char op, 
                const CALC_TYPE rhs_operand) {
+   if (op == '=') {
+      assert(0, "ILLEGAL MATH OP \'=\'");
+   }
    CALC_TYPE result = 0;
    switch(op) {
       case '+': /* add */
@@ -340,13 +343,21 @@ void PORT3_IRQHandler(void){
         if (operation == '\0') {
            // focus on the rhs now
            focus = &rhs; // set the focus to the address of rhs
+           // operation is set later
         }
         // else if the focus is already pointing to the rhs
-        else /*if  (focus == &rhs) */ {
+        // then we have a math operation to perform
+        else if (focus == &rhs) {
            // combine operands
            lhs = math_op(lhs, operation, rhs); // e.g. 3 '+' 4 = 7 = lhs
            rhs = 0;
-           // focus and operation are reset later in the switch statement
+           // operations are reset later in the switch statement
+        }
+        // operation isn't the null character and we're focusing on the lhs
+        else {
+           // lhs is finished, focus on the rhs now
+           focus = &rhs; // 
+           // operations are reset later in the switch statement
         }
      }
 
@@ -375,6 +386,25 @@ void PORT3_IRQHandler(void){
            break;
         /* handle equality: operation = '=' */
         case 0xF:  /* if "#" was pressed */
+           // is the focus on the rhs
+           if (focus == &rhs) {
+              // combine operands
+              lhs = math_op(lhs, operation, rhs); // e.g. 3 '-' 4 = -1 = lhs
+              rhs = 0; // reset rhs
+              focus = &lhs;
+              operation = '='; // initially set operation to the equal sign
+           }
+           // else focus is on the lhs and we're hitting equal again
+           // simulate a clear on the device (reset to zero)
+           else {
+              assert(focus == &lhs, "ERROR IN LOGIC");
+              lhs = 0; // reset lhs
+              rhs = 0; // for robustness
+              // reset the operation 
+              operation = '\0'; // no operation currently
+              GLCD_clear(); // clear the screen
+           }
+
            break;
         /* handle numbers */
         default: /* a number was pressed */
