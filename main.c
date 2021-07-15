@@ -69,6 +69,9 @@ CALC_TYPE rhs = 0;
 char operation = '\0'; // null-char means no-operation
 // start focus on the left hand side (lhs)
 CALC_TYPE * focus = &lhs; // point to the address of lhs
+int focus_on_fractional = 0; // focus on the whole part first until a decimal point
+// 64-bit int for the powers of 10
+long long int fractional_pow10 = 10; // 10^1 for the fractional divisor
 /* other variables */
 int i = 0, ind_formula=0;
 //int temp_formula[FORMULA_LIMIT]; 
@@ -343,6 +346,7 @@ void PORT3_IRQHandler(void){
            break;
         /* handle decimal point */
         case 0xE:  /* if "*" was pressed */
+           focus_on_fractional = 1; // focus on the fractional part
            break;
         /* handle equality: operation = '=' */
         case 0xF:  /* if "#" was pressed */
@@ -354,9 +358,26 @@ void PORT3_IRQHandler(void){
            // if the focus was zero
            // make sure the focus was pointing to NULL (zero)
            if (focus != 0) {
-              // dereference focus to assign its value to
-              // itself times 10 plus the new input
-              *focus = (*focus) * 10 + key; // e.g. 3 -> 3(10) + 4 = 34
+              // IF we should be focusing on the fractional part, 
+              // add a fractional part to the previous value and
+              // modify the fractional power of 10 for the divisor of the 
+              // next input
+              if (focus_on_fractional) {
+                 // dereference focus to assign its value to
+                 // itself plus the new input divided by 10
+                 // e.g. 3 -> 3 + 1/10 = 3.1
+                 *focus = (*focus) + (CALC_TYPE)key / (CALC_TYPE)fractional_pow10; 
+                 // increase the power of 10
+                 // to take 10^2 to 10^3 just multiply the left by 10
+                 fractional_pow10 *= 10; // 10 -> 10*10 = 10^2  
+              }
+              // work on the whole part
+              else {
+                 // dereference focus to assign its value to
+                 // itself times 10 plus the new input
+                 *focus = (*focus) * 10 + key; // e.g. 3 -> 3(10) + 4 = 34
+              }
+
            }
            break;
      }
