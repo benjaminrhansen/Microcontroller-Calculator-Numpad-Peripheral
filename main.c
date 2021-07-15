@@ -13,6 +13,7 @@
  *              digit displayed in the fractional part
  */
 #include "msp.h"
+#include "stdio.h"
 
 /* LEDs */
 #define LED1 BIT0
@@ -53,7 +54,7 @@ void SPI_init(void);
 void SPI_write(unsigned char);
 void blink(const int);
 void error_blink(const int);
-void assert(int, int);
+void assert(const int, char *);
 void test_math_op();
 void test_putnum();
 void test_positive_ints();
@@ -74,6 +75,7 @@ int focus_on_fractional = 0; // focus on the whole part first until a decimal po
 long long int fractional_pow10 = 10; // 10^1 for the fractional divisor
 /* other variables */
 int i = 0, ind_formula=0;
+;
 //int temp_formula[FORMULA_LIMIT]; 
 // there's no bool in base C
 //int is_first_num; // is this the first number in the formula
@@ -259,10 +261,10 @@ void error_blink(int n) {
  * math_op: An operation function to handle the addition, subtraction, 
  *      multiplication, or division of a LHS and RHS operand
  */
-CALC_TYPE math_op(const CALC_TYPE lhs_operand, const char operation, 
+CALC_TYPE math_op(const CALC_TYPE lhs_operand, const char op, 
                const CALC_TYPE rhs_operand) {
    CALC_TYPE result = 0;
-   switch(operation) {
+   switch(op) {
       case '+': /* add */
          result = lhs_operand + rhs_operand;
          break;
@@ -278,12 +280,14 @@ CALC_TYPE math_op(const CALC_TYPE lhs_operand, const char operation,
          }
          // else simulate a division-by-zero error
          else {
+            assert(0, "DIV BY ZERO");
             P2->OUT |= (LED2RED | LED1);
          }
          break;
-     
+
       default: /* set off an alarm */
          P2->OUT |= (LED2RED | LED1);
+         assert(0, "UNKOWN OP");
          break;
          
    }
@@ -329,20 +333,41 @@ void PORT3_IRQHandler(void){
 
   if(status & BIT0){  /* if any key was pressed */
      key = keypad_decode();  /* determine which key was pressed */
+     // determine how to update the global state
+     // check if the key was an opeartion 
+     if (key >= 0xA && key <= 0xD) { 
+        // check if the previous operation was the null character
+        if (operation == '\0') {
+           // focus on the rhs now
+           focus = &rhs; // set the focus to the address of rhs
+        }
+        // else if the focus is already pointing to the rhs
+        else /*if  (focus == &rhs) */ {
+           // combine operands
+           lhs = math_op(lhs, operation, rhs); // e.g. 3 '+' 4 = 7 = lhs
+           rhs = 0;
+           // focus and operation are reset later in the switch statement
+        }
+     }
+
      // perform the key's function
      // SWITCH on the key
      switch (key) {
         /* handle addition: operation = '+' */
         case 0xA: /* “A” was pressed */
+           operation = '+';
            break;
         /* handle subtraction: operation = '-' */
         case 0xB: /* if “B” was pressed */
+           operation = '-';
            break;
         /* handle multiplication: operation = '*' */
         case 0xC:  /* if “C” was pressed */
+           operation = '*';
            break;
         /* handle division: operation = '/' */
         case 0xD:  /* if "D" was pressed */
+           operation = '/';
            break;
         /* handle decimal point */
         case 0xE:  /* if "*" was pressed */
@@ -427,11 +452,13 @@ uint8_t keypad_decode() {
  * assert: assert the truth of the condition
  *      if condition is not true, sound the alarm
  */
-void assert(const int condition, int error_blink_n) {
+void assert(const int condition, char * message) {
+   
    if (!condition) {
-      error_blink(error_blink_n);
-      GLCD_putstr("Assert fired for error n: ");
-      GLCD_putnum(error_blink_n);
+      //error_blink(error_blink_n);
+      GLCD_putstr("ERROR: ");
+      GLCD_putstr(message);
+      //GLCD_putnum(error_blink_n);
       __delay_cycles(4*DELAY); // delay between errors as necessary
    }
 }
@@ -440,39 +467,38 @@ void assert(const int condition, int error_blink_n) {
  * Test the operation function
  */
 void test_math_op() {
-   int j = 0; // for denoting which asserts fired
    // add 
    //   integers
-   assert(math_op(4,'+',5) == 4+5,++j);
-   assert(math_op(5,'+',4) == 5+4,++j);
-   assert(math_op(292,'+',123) == 292+123,++j);
-   assert(math_op(-233,'+',343) == -233+343,++j);
-   assert(math_op(-233,'+',-233) == -233+(-233),++j);
-   assert(math_op(9898,'+',-9899) == 9898+(-9899),++j);
-   assert(math_op(9898,'+',-9897) == 9898+(-9897),++j);
+   assert(math_op(4,'+',5) == 4+5,"MATH OP ASSERT 1");
+   assert(math_op(5,'+',4) == 5+4,"MATH OP ASSERT 2");
+   assert(math_op(292,'+',123) == 292+123,"MATH OP ASSERT 3");
+   assert(math_op(-233,'+',343) == -233+343,"MATH OP ASSERT 4");
+   assert(math_op(-233,'+',-233) == -233+(-233),"MATH OP ASSERT 5");
+   assert(math_op(9898,'+',-9899) == 9898+(-9899),"MATH OP ASSERT 6");
+   assert(math_op(9898,'+',-9897) == 9898+(-9897),"MATH OP ASSERT 7");
    //   float
-   assert(math_op(9898.5,'+',-9897.5) == 9898.5+(-9897.5),++j);
-   assert(math_op(9898.5,'+',-9897) == 9898.5+(-9897),++j);
-   assert(math_op(9898.5,'+',-9898) == 9898.5+(-9898),++j);
-   assert(math_op(-9898.5,'+',-9898.5) == -9898.5+(-9898.5),++j);
-   assert(math_op(-9898.75,'+',-9898.5) == -9898.75+(-9898.5),++j);
-   assert(math_op(9898.75,'+',9898.5) == 9898.75+9898.5,++j);
+   assert(math_op(9898.5,'+',-9897.5) == 9898.5+(-9897.5),"MATH OP ASSERT 8");
+   assert(math_op(9898.5,'+',-9897) == 9898.5+(-9897),"MATH OP ASSERT 9");
+   assert(math_op(9898.5,'+',-9898) == 9898.5+(-9898),"MATH OP ASSERT 10");
+   assert(math_op(-9898.5,'+',-9898.5) == -9898.5+(-9898.5),"MATH OP ASSERT 11");
+   assert(math_op(-9898.75,'+',-9898.5) == -9898.75+(-9898.5),"MATH OP ASSERT 12");
+   assert(math_op(9898.75,'+',9898.5) == 9898.75+9898.5,"MATH OP ASSERT 13");
    //   long double
 
    // subtract
-   assert(math_op(4,'-',5) == 4-5,++j);
-   assert(math_op(292,'-',123) == 292-123,++j);
+   assert(math_op(4,'-',5) == 4-5,"MATH OP ASSERT 14");
+   assert(math_op(292,'-',123) == 292-123,"MATH OP ASSERT 15");
    // multiply
-   assert(math_op(2,'*',2) == 2*2,++j);
-   assert(math_op(4,'*',2) == 4*2,++j);
-   assert(math_op(4,'*',5) == 4*5,++j);
-   assert(math_op(123,'*',13) == 123*13,++j);
+   assert(math_op(2,'*',2) == 2*2,"MATH OP ASSERT 16");
+   assert(math_op(4,'*',2) == 4*2,"MATH OP ASSERT 17");
+   assert(math_op(4,'*',5) == 4*5,"MATH OP ASSERT 18");
+   assert(math_op(123,'*',13) == 123*13,"MATH OP ASSERT 19");
    // divide
-   assert(math_op(10,'/',5) == 10.0/5.0,++j);
-   assert(math_op(20,'/',5) == 20.0/5.0,++j);
-   assert(math_op(9,'/',5) == (float)9/(float)5,++j);
-   assert(math_op(11,'/',5) == (float)11.0/(float)5.0,++j);
-   //assert(math_op(0,'/',0) == 0,++j); // should set the alarm off
+   assert(math_op(10,'/',5) == 10.0/5.0,"MATH OP ASSERT 20");
+   assert(math_op(20,'/',5) == 20.0/5.0,"MATH OP ASSERT 21");
+   assert(math_op(9,'/',5) == (float)9/(float)5,"MATH OP ASSERT 22");
+   assert(math_op(11,'/',5) == (float)11.0/(float)5.0,"MATH OP ASSERT 23");
+   //assert(math_op(0,'/',0) == 0,"MATH OP ASSERT 24"); // should set the alarm off
    
    // test edge cases
 }
@@ -694,7 +720,8 @@ void display_current_state() {
    GLCD_putnum(lhs);
    // IF the opeartion is not the null character or the equal sign
    if (operation != '\0' && operation != '=') {
-      GLCD_putstr(operation); // display the operation
+      // display the operation and the rhs
+      GLCD_putchar(operation - 32); // get operation within index range
       GLCD_putnum(rhs);       // display the rhs
    }
 }

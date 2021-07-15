@@ -19,6 +19,8 @@ main.obj: /Applications/ti/ccs1031/ccs/ccs_base/arm/include/CMSIS/core_cm4.h
 main.obj: /Applications/ti/ccs1031/ccs/ccs_base/arm/include/CMSIS/cmsis_compiler.h
 main.obj: /Applications/ti/ccs1031/ccs/ccs_base/arm/include/CMSIS/cmsis_ccs.h
 main.obj: /Applications/ti/ccs1031/ccs/ccs_base/arm/include/system_msp432p401r.h
+main.obj: /Applications/ti/ccs1031/ccs/tools/compiler/ti-cgt-arm_20.2.4.LTS/include/stdio.h
+main.obj: /Applications/ti/ccs1031/ccs/tools/compiler/ti-cgt-arm_20.2.4.LTS/include/stdarg.h
 
 ../main.c:
 
@@ -57,4 +59,8 @@ main.obj: /Applications/ti/ccs1031/ccs/ccs_base/arm/include/system_msp432p401r.h
 /Applications/ti/ccs1031/ccs/ccs_base/arm/include/CMSIS/cmsis_ccs.h:
 
 /Applications/ti/ccs1031/ccs/ccs_base/arm/include/system_msp432p401r.h:
+
+/Applications/ti/ccs1031/ccs/tools/compiler/ti-cgt-arm_20.2.4.LTS/include/stdio.h:
+
+/Applications/ti/ccs1031/ccs/tools/compiler/ti-cgt-arm_20.2.4.LTS/include/stdarg.h:
 
