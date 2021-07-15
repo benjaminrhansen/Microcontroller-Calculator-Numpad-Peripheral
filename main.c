@@ -50,6 +50,7 @@ void GLCD_command_write(unsigned char);
 void GLCD_putchar(int);
 void GLCD_putstr(char *);
 void display_current_state(); // refreshes the display
+void set_focus(const CALC_TYPE *);
 void SPI_init(void);
 void SPI_write(unsigned char);
 void blink(const int);
@@ -212,6 +213,17 @@ int main(void) {
    while (1) {} /* wait for an interrupt */
 }
 
+/**
+ * Set focus to the given pointer's value
+ * Helps to reset the fractional boolean variable each time
+ */
+void set_focus(const CALC_TYPE * f) {
+   focus = f; // assign the global to the given input
+   focus_on_fractional = 0; // a new focus means to focus on the whole part
+   // reset the fractional power of 10
+   fractional_pow10 = 10; // 10^1
+}
+
 /***
  * Blink the green LED n times
  * deprecated
@@ -340,25 +352,19 @@ void PORT3_IRQHandler(void){
      // check if the key was an opeartion 
      if (key >= 0xA && key <= 0xD) { 
         // check if the previous operation was the null character
-        if (operation == '\0') {
-           // focus on the rhs now
-           focus = &rhs; // set the focus to the address of rhs
-           // operation is set later
-        }
-        // else if the focus is already pointing to the rhs
-        // then we have a math operation to perform
-        else if (focus == &rhs) {
+        // if the focus is already pointing to the rhs
+        if (operation != '\0' && focus == &rhs) {
+           // then we have a math operation to perform
            // combine operands
            lhs = math_op(lhs, operation, rhs); // e.g. 3 '+' 4 = 7 = lhs
            rhs = 0;
            // operations are reset later in the switch statement
         }
+        // else we're adding a rhs operand
+        // operations are reset later in the switch statement
         // operation isn't the null character and we're focusing on the lhs
-        else {
-           // lhs is finished, focus on the rhs now
-           focus = &rhs; // 
-           // operations are reset later in the switch statement
-        }
+        // always set the focus on the rhs
+        set_focus(&rhs);
      }
 
      // perform the key's function
@@ -391,7 +397,6 @@ void PORT3_IRQHandler(void){
               // combine operands
               lhs = math_op(lhs, operation, rhs); // e.g. 3 '-' 4 = -1 = lhs
               rhs = 0; // reset rhs
-              focus = &lhs;
               operation = '='; // initially set operation to the equal sign
            }
            // else focus is on the lhs and we're hitting equal again
@@ -404,6 +409,9 @@ void PORT3_IRQHandler(void){
               operation = '\0'; // no operation currently
               GLCD_clear(); // clear the screen
            }
+           // an equality seeks to always show the answer
+           // refocus on the lhs
+           set_focus(&lhs); // for robustness, reset focus and boolean
 
            break;
         /* handle numbers */
