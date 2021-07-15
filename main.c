@@ -326,29 +326,29 @@ void PORT3_IRQHandler(void){
 
   if(status & BIT0){  /* if any key was pressed */
      key = keypad_decode();  /* determine which key was pressed */
-     // switch on the key
+     // perform the key's function
+     // SWITCH on the key
      switch (key) {
+        /* handle addition: operation = '+' */
         case 0xA: /* “A” was pressed */
-           //P2->OUT &= ~(RGB_LED); /* turn off the RGB LED */
            break;
+        /* handle subtraction: operation = '-' */
         case 0xB: /* if “B” was pressed */
-           //P2->OUT &= ~(RGB_LED); /* turn off the RGB LED */
-           // turn on the blue light to confirm formulaword save
-           //P2->OUT |= LED2BLUE;   /* turn on the blue LED (P2.2) */
            break;
+        /* handle multiplication: operation = '*' */
         case 0xC:  /* if “C” was pressed */
-           //P2->OUT &= ~(RGB_LED); /* turn off the RGB LED */      
            break;
+        /* handle division: operation = '/' */
         case 0xD:  /* if "D" was pressed */
-           //P2->OUT &= ~(RGB_LED); /* turn off the RGB LED */
-           //P2->OUT |= LED2GREEN;  /* turn on the green LED (P2.1) */
-           //blink(lhs_operand);
            break;
-        case 0xE:
+        /* handle decimal point */
+        case 0xE:  /* if "*" was pressed */
            break;
-        case 0xF:
+        /* handle equality: operation = '=' */
+        case 0xF:  /* if "#" was pressed */
            break;
-        default:
+        /* handle numbers */
+        default: /* a number was pressed */
            break;
      }
   }
