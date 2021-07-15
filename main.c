@@ -349,6 +349,15 @@ void PORT3_IRQHandler(void){
            break;
         /* handle numbers */
         default: /* a number was pressed */
+           /* modify the value of the focus */
+
+           // if the focus was zero
+           // make sure the focus was pointing to NULL (zero)
+           if (focus != 0) {
+              // dereference focus to assign its value to
+              // itself times 10 plus the new input
+              *focus = (*focus) * 10 + key; // e.g. 3 -> 3(10) + 4 = 34
+           }
            break;
      }
   }
