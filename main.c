@@ -31,7 +31,6 @@
 
 /* constants */
 #define DELAY 5000000
-#define OP_MAX_SIZE 100000000
 #define PRECISION 4 /* fractional digits displayed */ 
 
 /* types */
@@ -74,13 +73,10 @@ CALC_TYPE * focus = &lhs; // point to the address of lhs
 int focus_on_fractional = 0; // focus on the whole part first until a decimal point
 // 64-bit int for the powers of 10
 long long int fractional_pow10 = 10; // 10^1 for the fractional divisor
+
 /* other variables */
 int i = 0, ind_formula=0;
-;
-//int temp_formula[FORMULA_LIMIT]; 
-// there's no bool in base C
-//int is_first_num; // is this the first number in the formula
-int alarm = 0;
+
 /* sample font table */
 /* rows 0-63 correspond to characters Space through _ in ASCII */
 /* Strings using characters in this range 
@@ -201,10 +197,12 @@ int main(void) {
    GLCD_clear();   /* clear display and  home the cursor */
 
    /* start tests */
-   //test_math_op();
-   //GLCD_clear();   /* clear display and  home the cursor */
-   //test_alphabet();
-   //test_putnum();
+   test_math_op();
+   GLCD_clear();   /* clear display and  home the cursor */
+   test_alphabet();
+   GLCD_clear();   /* clear display and  home the cursor */
+   test_putnum();
+   GLCD_clear();   /* clear display and  home the cursor */
    /* end tests */
 
    // display the current state (should display lhs = 0)
@@ -296,12 +294,10 @@ CALC_TYPE math_op(const CALC_TYPE lhs_operand, const char op,
          // else simulate a division-by-zero error
          else {
             assert(0, "DIV BY ZERO");
-            P2->OUT |= (LED2RED | LED1);
          }
          break;
 
       default: /* set off an alarm */
-         P2->OUT |= (LED2RED | LED1);
          assert(0, "UNKOWN OP");
          break;
          
@@ -320,14 +316,9 @@ void PORT1_IRQHandler(void){
   P1->IFG &= ~BIT1;    /* clear the interrupt for port 1, pin 1 */
 
   if(status & BIT1){   /* if SW was pressed */
-     alarm = 0;
      P2->OUT &= ~LED2RED;  /*turn off red LED at pin P2.0 */
      P1->OUT &= ~LED1; /*turn off red LED at pin P1.0 */
      P2->OUT &= ~(LED2BLUE | LED2GREEN); /*turn off blue and green LEDs */
-
-     // testing //
-     blink(3);
-     // end testing //
   }
 }
 
@@ -493,11 +484,17 @@ uint8_t keypad_decode() {
 void assert(const int condition, char * message) {
    
    if (!condition) {
-      //error_blink(error_blink_n);
+      // display the error message for a little while
+      // clear the GLCD first
+      GLCD_clear();
       GLCD_putstr("ERROR: ");
       GLCD_putstr(message);
-      //GLCD_putnum(error_blink_n);
       __delay_cycles(4*DELAY); // delay between errors as necessary
+      GLCD_clear();
+      display_current_state(); // turn back to the current state
+      // turn on alarm
+      P2->OUT |= LED2RED; // red of the RGB LED
+      P1->OUT |= LED1;    // red LED
    }
 }
 
@@ -534,17 +531,14 @@ void test_math_op() {
    // divide
    assert(math_op(10,'/',5) == 10.0/5.0,"MATH OP ASSERT 20");
    assert(math_op(20,'/',5) == 20.0/5.0,"MATH OP ASSERT 21");
-   assert(math_op(9,'/',5) == (float)9/(float)5,"MATH OP ASSERT 22");
-   assert(math_op(11,'/',5) == (float)11.0/(float)5.0,"MATH OP ASSERT 23");
+   assert(math_op(14,'/',4) == (CALC_TYPE)14/(CALC_TYPE)4,"MATH OP ASSERT 22");
+   assert(math_op(12,'/',8) == (CALC_TYPE)12/(CALC_TYPE)8,"MATH OP ASSERT 23");
    //assert(math_op(0,'/',0) == 0,"MATH OP ASSERT 24"); // should set the alarm off
-   
-   // test edge cases
 }
-
-
 
 /*
  * The smiley face is defined to be the last two characters of the array
+ * not currently used
  */
 void GLCD_put_smiley_face() {
    int size = sizeof(font_table) / sizeof(font_table[0]);
